@@ -3,7 +3,7 @@
 
 #include "Arduino.h"
 
-#define MAX_ARGUMENTS 20  // Max 20 arguments including options and non-options
+#define MAX_ARGUMENTS 10  
 
 class Arduino_Arg_Parser {
   public:
