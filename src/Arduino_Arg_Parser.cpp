@@ -21,64 +21,40 @@ int Arduino_Arg_Parser::parse(const char *inputString, size_t length) {
 }
 
 int Arduino_Arg_Parser::parse(const String &inputString) {
-    reset();
-
-    int spaceIndex = inputString.indexOf(' ');
-    if (spaceIndex == -1) {
-        parsedCommand.command = inputString;  // If no arguments, set the whole input as the command
-        return 0;
+    reset();  // Reset parsed command and arguments
+    
+    // The first token is the command
+    int start = 0;
+    int end = inputString.indexOf(' ', start);
+    if (end == -1) {
+        parsedCommand.command = inputString;
+        return 0;  // Only command, no arguments
     }
+    parsedCommand.command = inputString.substring(start, end);
+    start = end + 1;
 
-    parsedCommand.command = inputString.substring(0, spaceIndex);  // Extract command
-    String remaining = inputString.substring(spaceIndex + 1);
-
-    while (remaining.length() > 0) {
-        int spacePos = remaining.indexOf(' ');
-        String token;
-        if (spacePos == -1) {
-            token = remaining;  // Last argument
-            remaining = "";
-        } else {
-            token = remaining.substring(0, spacePos);
-            remaining = remaining.substring(spacePos + 1);
-        }
-
-        if (token.startsWith("--")) {
-            int equalPos = token.indexOf('=');
-            if (equalPos != -1) {
-                // Long option with value: --key=value
-                String key = token.substring(2, equalPos);
-                String value = token.substring(equalPos + 1);
-                parseOption(key, value);
-            } else {
-                // Long option without value: --key, value comes later
-                String key = token.substring(2);
-                if (remaining.length() > 0) {
-                    spacePos = remaining.indexOf(' ');
-                    if (spacePos == -1) {
-                        parseOption(key, remaining);  // Use remaining as the value
-                        remaining = "";
-                    } else {
-                        String value = remaining.substring(0, spacePos);
-                        parseOption(key, value);
-                        remaining = remaining.substring(spacePos + 1);
-                    }
+    // Process the rest of the tokens
+    while (start < inputString.length()) {
+        end = inputString.indexOf(' ', start);
+        String token = (end == -1) ? inputString.substring(start) : inputString.substring(start, end);
+        
+        if (token.startsWith("-")) {
+            // Option handling (both short and long)
+            String key = token.startsWith("--") ? token.substring(2) : token.substring(1);
+            if (end != -1 && start < inputString.length() - 1) {
+                int nextStart = end + 1;
+                int nextEnd = inputString.indexOf(' ', nextStart);
+                if (nextEnd == -1) nextEnd = inputString.length();
+                String nextToken = inputString.substring(nextStart, nextEnd);
+                if (!nextToken.startsWith("-")) {
+                    // Next token is a value for this key
+                    parseOption(key, nextToken);
+                    start = nextEnd + 1;
+                    continue;
                 }
             }
-        } else if (token.startsWith("-")) {
-            // Short option: -key value
-            String key = token.substring(1);
-            if (remaining.length() > 0) {
-                spacePos = remaining.indexOf(' ');
-                if (spacePos == -1) {
-                    parseOption(key, remaining);  // Use remaining as the value
-                    remaining = "";
-                } else {
-                    String value = remaining.substring(0, spacePos);
-                    parseOption(key, value);
-                    remaining = remaining.substring(spacePos + 1);
-                }
-            }
+            // No value, treat as a flag
+            parseOption(key, "true");
         } else {
             // Non-option argument
             if (parsedCommand.numArgs < MAX_ARGUMENTS) {
@@ -87,10 +63,14 @@ int Arduino_Arg_Parser::parse(const String &inputString) {
                 parsedCommand.numArgs++;
             }
         }
+        
+        if (end == -1) break;
+        start = end + 1;
     }
-
+    
     return parsedCommand.numArgs;
 }
+
 
 void Arduino_Arg_Parser::reset() {
     parsedCommand.command = "";
